@@ -1,0 +1,752 @@
+<div class="header-dock">
+<header id="game-header" class="topbar hero-header">
+  <button class="header-menu-toggle" popovertarget="header-menu" aria-label="Abrir menú principal" title="Menú principal">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+  </button>
+  <nav id="header-menu" class="header-menu" popover aria-label="Menú principal" #headerMenu>
+    <button (click)="open('legend'); headerMenu.hidePopover()"><app-icon name="book" />Leyenda y reglas</button>
+    <button [disabled]="!store.game()" [attr.aria-current]="!setup() && tab() === 'journal' ? 'page' : null" (click)="showArchive(); headerMenu.hidePopover()"><app-icon name="book" />Archivo de la partida</button>
+  </nav>
+  <button class="header-new-game" (click)="newGame()">Nueva partida</button>
+  <img class="header-logo" src="branding/the-witcher-old-world.webp" alt="The Witcher Old World" width="1200" height="675" fetchpriority="high" />
+</header>
+</div>
+@if (setup()) {
+  <main class="setup-page">
+    @if (setupStep() === 1) {
+      <div class="setup-intro opponent-intro"><h1>Elige a tu Adversario</h1></div>
+      <section class="opponent-carousel" aria-label="Selector de adversario" aria-roledescription="carrusel"
+        tabindex="0" (keydown)="carouselKey($event)" (pointerdown)="beginSwipe($event)"
+        (pointerup)="endSwipe($event)" (pointercancel)="cancelSwipe()">
+        <div class="opponent-stage">
+          @for (s of schools; track s.id) {
+            <article class="opponent-card" [class.current]="schoolOffset(s.id) === 0"
+              [class.previous]="schoolOffset(s.id) === -1" [class.next]="schoolOffset(s.id) === 1"
+              [class.offstage]="schoolOffset(s.id) < -1 || schoolOffset(s.id) > 1"
+              [attr.inert]="schoolOffset(s.id) < -1 || schoolOffset(s.id) > 1 ? '' : null"
+              [attr.aria-hidden]="schoolOffset(s.id) < -1 || schoolOffset(s.id) > 1 ? 'true' : null">
+              <button class="opponent-portrait" [attr.aria-label]="'Ver especiales: ' + s.name"
+                [tabIndex]="schoolOffset(s.id) === 0 ? 0 : -1"
+                (click)="previewCandidate(s.id, $event)">
+                <img [src]="portrait(s.id)" [alt]="'Brujo de la escuela ' + s.name" draggable="false" />
+              </button>
+              @if (schoolOffset(s.id) === 0) {
+                <span class="school-emblem" aria-hidden="true">
+                  <img [src]="'schools/emblems/' + s.id + '.png'" alt="" draggable="false" />
+                </span>
+                <label class="opponent-check">
+                  <input type="checkbox" [attr.aria-label]="'Seleccionar adversario: ' + s.name"
+                    [ngModel]="schoolChosen()" (ngModelChange)="schoolChosen.set($event)" />
+                  <span aria-hidden="true"><app-icon name="check" /></span>
+                </label>
+              }
+            </article>
+          }
+        </div>
+        <button class="carousel-arrow carousel-prev" aria-label="Adversario anterior" (click)="cycleSchool(-1)">‹</button>
+        <button class="carousel-arrow carousel-next" aria-label="Adversario siguiente" (click)="cycleSchool(1)">›</button>
+      </section>
+      <h2 class="opponent-name" aria-live="polite">{{ selected().name }}</h2>
+      <div class="wizard-actions"><button class="primary-button" [disabled]="!schoolChosen()" (click)="continueWithSchool()">Continuar <span>→</span></button></div>
+    }
+    @if (setupStep() === 2) {
+      <section class="difficulty-picker" aria-labelledby="difficulty-title">
+        <h1 id="difficulty-title">Elige la dificultad de la senda</h1>
+        <div class="difficulty-icons" role="group" aria-label="Dificultad">
+          @for (d of difficulties; track d) {
+            <button class="difficulty-option" [class.active]="difficulty() === d"
+              [attr.aria-pressed]="difficulty() === d" (click)="difficulty.set(d)">
+              <img [src]="'difficulty/' + d + '.png'" alt="" draggable="false" />
+              <span>{{ difficultyNames[d] }}</span>
+            </button>
+          }
+        </div>
+      </section>
+      <div class="wizard-actions"><button class="text-button" (click)="setupStep.set(1)">← Adversario</button><button class="primary-button" (click)="setupStep.set(3)">Continuar <span>→</span></button></div>
+    }
+    @if (setupStep() === 3) {
+      <section class="expansion-picker" aria-labelledby="expansion-title">
+        <h1 id="expansion-title">Expansiones añadidas</h1>
+        <ul class="expansion-list" aria-label="Expansiones disponibles">
+          <li>
+            <button type="button" class="expansion-option" [class.active]="monsterTrailExpansion()"
+              [attr.aria-pressed]="monsterTrailExpansion()" (click)="toggleMonsterTrail()"
+              [title]="monsterTrailExpansion() ? 'Desactivar Monster Trail' : 'Activar Monster Trail'">
+              <img src="expansions/monster-trail.png" alt="Monster Trail" draggable="false" />
+            </button>
+              <fieldset class="expansion-modules" [disabled]="!monsterTrailExpansion()" aria-label="Módulos de Monster Trail">
+                <label class="check-label"><input type="checkbox" [ngModel]="bombs()" (ngModelChange)="bombs.set($event)" /><app-icon name="bomb" />Bombas</label>
+                <label class="check-label"><input type="checkbox" [ngModel]="mutagens()" (ngModelChange)="mutagens.set($event)" /><span class="mutagen-module-symbol" aria-hidden="true">◆</span>Mutágenos</label>
+              </fieldset>
+          </li>
+        </ul>
+      </section>
+    <div class="setup-start">
+      <button class="primary-button" (click)="start()">Comenzar la partida <span>→</span></button>
+    </div>
+      <button class="text-button" (click)="setupStep.set(2)">← Dificultad</button>
+    }
+    @if (store.game()) {
+      <button class="text-button resume-button" (click)="setup.set(false)">
+        ← Volver a la partida guardada
+      </button>
+    }
+
+  </main>
+} @else if (store.game(); as g) {
+  <div class="game-layout" [class.game-won]="g.trophies === 4">
+    @if (g.trophies < 4) {
+      <nav class="view-tabs icon-tabs" aria-label="Secciones de la partida">
+        <button aria-label="Turno del automa" title="Turno del automa"
+          [attr.aria-pressed]="tab() === 'turn'" [class.active]="tab() === 'turn'" (click)="switchTab('turn')">
+          <img src="navigation/automa.png" alt="" draggable="false" />
+        </button>
+        <button aria-label="Combate" title="Combate"
+          [attr.aria-pressed]="tab() === 'combat'" [class.active]="tab() === 'combat'" (click)="switchTab('combat')">
+          <img src="navigation/combat.png" alt="" draggable="false" />
+          @if (g.combat) { <span class="live-dot" role="status" aria-label="Combate en curso"></span> }
+        </button>
+        <button aria-label="Meditación" title="Trofeos de meditación"
+          [attr.aria-pressed]="tab() === 'meditation'" [class.active]="tab() === 'meditation'" (click)="switchTab('meditation')">
+          <img src="icons/meditate.png" alt="" draggable="false" />
+        </button>
+        <button aria-label="Póker de dados" title="Póker de dados"
+          [attr.aria-pressed]="tab() === 'poker'" [class.active]="tab() === 'poker'" (click)="switchTab('poker')">
+          <img src="navigation/poker.png" alt="" draggable="false" />
+        </button>
+      </nav>
+    }
+    <main #playArea class="play-area">
+      @if (g.trophies === 4) {
+        <app-victory [school]="g.school" [schoolName]="store.school().name" (newGame)="prepareSetup()" />
+      } @else {
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">{{ difficultyNames[g.difficulty] }} · UN AUTOMA</span>
+          @if (tab() === 'turn') {
+            <h1>La senda del <em>automa</em></h1>
+          } @else if (tab() === 'combat') {
+            <h1>Combate</h1>
+          } @else if (tab() === 'meditation') {
+            <h1>Trofeos de meditación</h1>
+          } @else if (tab() === 'poker') {
+            <h1>Póker de dados</h1>
+          }
+        </div>
+        <div class="session-tools">
+          @if (tab() === 'turn') {
+            <div class="turn-badge" aria-label="Turno actual"><span>Turno</span><strong>{{ g.turn.toString().padStart(2, '0') }}</strong></div>
+          } @else if (tab() !== 'meditation' && tab() !== 'poker') {
+            <button class="icon-button" [disabled]="!store.canUndo()" (click)="undo()"
+              title="Deshacer última acción" aria-label="Deshacer última acción"><app-icon name="undo" /></button>
+          }
+        </div>
+      </div>
+
+      @if (tab() === 'turn') {
+        <div class="turn-content">
+          <section class="drawn-card-section">
+            <div class="action-deck-stack" [class.has-cards]="g.actionDeck.length > 0">
+            @if (store.card(); as c) {
+              <button
+                class="card-art-button"
+                [class.revealing]="revealing()" (animationend)="revealing.set(false)"
+                (click)="zoom(c.id)"
+                aria-label="Ampliar carta de acción"
+              >
+                <img
+                  class="playing-card"
+                  [src]="img(c.id)"
+                  [alt]="'Carta de acción ' + c.id + ', nivel ' + c.level"
+                /><span class="zoom-hint">⤢ Ampliar carta</span>
+              </button>
+            } @else {
+              <div class="card-back">
+                <img src="cards/back.webp" alt="Dorso del mazo de acción" />
+
+              </div>
+            }
+            </div>
+          </section>
+          <section class="phase-panel" [class.awaiting-card]="g.phase === 0 && !g.combat" aria-live="polite">
+            @if (g.combat) {
+              <span class="eyebrow">ENCUENTRO EN CURSO</span>
+              <h2>El acero ya está fuera.</h2>
+              <p>Resuelve el combate para continuar la secuencia del turno.</p>
+              
+            } @else if (g.phase === 0) {
+              
+            } @else if (g.phase === 1 && store.card(); as c) {
+              @if ((g.actionStep ?? 'movement') === 'movement') {
+                <h2 class="phase-label">Fase I / Movimiento</h2>
+                <div class="movement-target">
+                  <div class="movement-destination">
+                    @if (c.destination === 'monster') {
+                      <span class="monster-destination"><app-icon name="monster" /></span>
+                      <span>Monstruo de menor nivel</span>
+                    } @else {
+                      <strong>{{ c.destination }}</strong><span>Localización</span>
+                    }
+                  </div>
+                  <div class="movement-distance"><strong>{{ c.destination === 'monster' || c.movement === 'unlimited' ? '∞' : c.movement }}</strong><span>{{ c.destination === 'monster' || c.movement === 'unlimited' ? 'Sin límite de espacios' : 'Espacios como máximo' }}</span></div>
+                </div>
+                <p class="movement-tiebreak">{{ c.destination === 'monster' ? 'Menor nivel → rastro → menor vida → ' : 'Desempate: ' }}{{ c.direction === 'up' ? '↑ número mayor' : '↓ número menor' }}</p>
+                @if (c.actions.includes('trace')) {
+                  <fieldset class="movement-terrain-picker">
+                    <legend>Terreno al terminar el movimiento</legend>
+                    <div class="terrain-options">
+                      @for (t of terrains; track t) {
+                        <label class="terrain-option" [title]="terrainNames[t]">
+                          <input type="radio" name="movement-terrain" [value]="t" [checked]="g.terrain === t"
+                            [attr.aria-label]="terrainNames[t]" (change)="setTerrain(t)" />
+                          <app-icon [name]="t" />
+                        </label>
+                      }
+                    </div>
+                  </fieldset>
+                }
+                
+              } @else {
+                <h2 class="phase-label">Fase I / Acciones</h2>
+                <div class="action-list" [class.actions-applied]="g.actionStep === 'applied'">
+                  @for (a of c.actions; track $index) {
+                    <div><span class="action-icon"><app-icon [name]="a === 'trace' ? g.terrain : a" /></span>
+                      <span>{{ labels[a] }}{{ attrs.includes($any(a)) ? ' +1' : '' }}
+                        @if (a === 'bomb' && !g.bombModule) { <small> · Módulo desactivado</small> }
+                      </span>
+                    </div>
+                  }
+                </div>
+                @if (g.actionStep === 'applied') {
+                  <p class="actions-confirmed"><app-icon name="check" />Cambios aplicados</p>
+                  
+                }
+              }
+            } @else if (g.phase === 2) {
+              <h2 class="phase-label">Fase II / Encuentro</h2>
+              @if (g.turnResolved) {
+                <div class="resolved-message">
+                  <app-icon name="check" />
+                  <p>
+                    Encuentro resuelto.<br /><strong>{{ g.history[0] }}</strong>
+                  </p>
+                </div>
+                
+              } @else {
+                <div class="encounter-options">
+                  @for (option of store.card()!.phase2; track $index) {
+                    @if (option === 'meditate') {
+                      <div class="encounter-option meditation-option" [class.selected]="selectedEncounter() === 'meditate'" [attr.aria-disabled]="!meditation()">
+                        <app-icon name="meditate" />
+                        <div>
+                          <strong>Meditar</strong>
+                          @if (meditation(); as a) {
+                            <span><app-icon [name]="a" />{{ labels[a] }} a nivel 5</span>
+                          } @else {
+                            <small>{{ meditationUnavailableReason() }}</small>
+                          }
+                        </div>
+                      </div>
+                    }
+                    @if (option === 'monster' && monsterEncounter()) {
+                      <div class="monster-encounter-choice">
+                      <label class="encounter-option" [class.selected]="monsterPresent() && !meditation()" [attr.aria-disabled]="!!meditation()">
+                        <img src="icons/monster.png" alt="Monstruo" />
+                        <span class="check-label"><input type="checkbox" [disabled]="!!meditation()" [ngModel]="monsterPresent() && !meditation()" (ngModelChange)="monsterPresent.set($event)" />Hay un monstruo</span>
+                      </label>
+                        @if (selectedEncounter() === 'monster') {
+                          <div class="monster-trail-picker">
+                  <h3 class="monster-trail-title">Rastro del monstruo</h3>
+                  <div class="monster-trail-options" role="group" aria-label="Rastro del monstruo">
+                    @for (t of terrains; track t) {
+                      <button type="button" [class.selected]="monsterTrail() === t" [attr.aria-pressed]="monsterTrail() === t"
+                        (click)="selectMonsterTrail(t)"><app-icon [name]="t" /><span>{{ terrainNames[t] }}</span></button>
+                    }
+                  </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                    @if (option === 'witcher' && witcherEncounter()) {
+                      <label class="encounter-option" [class.selected]="witcherPresent()">
+                        <img src="icons/enemy-witcher.png" alt="Brujo enemigo" />
+                        <span class="check-label"><input type="checkbox" [ngModel]="witcherPresent()" (ngModelChange)="selectWitcher($event)" />Hay un brujo enemigo</span>
+                      </label>
+                    }
+                  }
+                </div>
+                @if (!monsterEncounter() && !witcherEncounter() && !meditation()) {
+                  <p class="encounter-unavailable">No hay encuentros disponibles con los trofeos actuales.</p>
+                }
+                @if (selectedEncounter() === 'monster') {
+                  @if (monsterTrail(); as trail) {
+                    <p class="encounter-initiative" role="status">{{ g.traces.includes(trail) ? 'El automa ataca primero. Se consume su rastro de ' + terrainNames[trail] + '.' : 'El monstruo ataca primero: el automa no tiene ese rastro.' }}</p>
+                  }
+                }
+              }
+            } @else if (g.phase === 3 && store.card(); as c) {
+              <h2 class="phase-label">Fase 3 / Renovar mercado</h2>
+              <div class="market-slots" role="list" aria-label="Posiciones del mercado, del 1 abajo al 6 arriba">
+                @for (n of [6, 5, 4, 3, 2, 1]; track n) {
+                  <div role="listitem" [class.discard-slot]="c.market.includes(n)"
+                    [attr.aria-label]="'Posición ' + n + (c.market.includes(n) ? ': renovar' : ': mantener')">
+                    <span aria-hidden="true">{{ n }}</span>
+                  </div>
+                }
+              </div>
+              
+            }
+          </section>
+          <app-deck-counter [deckCount]="g.actionDeck.length" [discardCount]="g.actionDiscard.length" [trophies]="g.trophies" aria-label="Mazo de acción y cambio de fase">
+            @if (g.combat) {
+              <button class="primary-button" (click)="switchTab('combat')">Ir al combate <app-icon name="attack" /></button>
+            } @else if (g.phase === 0) {
+              <button class="primary-button" [disabled]="g.trophies === 4" (click)="draw()">Revelar carta de acción <span>→</span></button>
+            } @else if (g.phase === 1 && store.card()) {
+              @if ((g.actionStep ?? 'movement') === 'movement') {
+                <button class="primary-button" (click)="confirmMovement()">Confirmar movimiento <span>→</span></button>
+              } @else if (g.actionStep === 'applied') {
+                <button class="primary-button" (click)="next()">Ir a fase II <span>→</span></button>
+              } @else {
+                <button class="primary-button" (click)="confirmActions()">Confirmar y aplicar cambios <span>→</span></button>
+              }
+            } @else if (g.phase === 2) {
+              @if (g.turnResolved) {
+                <button class="primary-button" [disabled]="g.trophies === 4" (click)="next()">Continuar al mercado <span>→</span></button>
+              } @else {
+                <button class="primary-button" [disabled]="selectedEncounter() === 'monster' && !monsterTrail()" (click)="resolve()">{{ selectedEncounter() === 'meditate' ? 'Meditar y ganar trofeo' : selectedEncounter() === 'monster' || selectedEncounter() === 'witcher' ? 'Pasar a combate' : 'Resolver encuentro' }} <span>→</span></button>
+              }
+            } @else if (g.phase === 3 && store.card()) {
+              <button class="primary-button" (click)="next()">Mercado repuesto · Terminar turno <span>→</span></button>
+            }
+          </app-deck-counter>
+        </div>
+
+      }
+      @if (tab() === 'combat') {
+        @if (g.combat; as c) {
+          <div class="combat-layout">
+            <section class="drawn-card-section combat-deck" aria-label="Mazo de combate">
+              <div class="action-deck-stack" [class.has-cards]="c.deck.length > 0">
+                @if (c.turn === 'automa' && c.damageRemaining === undefined && (!c.attackReady || c.comboPending) && currentCombatCard(); as card) {
+                  @for (id of [card.id]; track 'combat-' + id) {
+                    <button class="card-art-button" [class.revealing]="combatRevealing()" (animationend)="combatRevealing.set(false)"
+                      (click)="zoom(id)" aria-label="Ampliar carta de combate">
+                      <img class="playing-card" [src]="img(id)" [alt]="'Combo de la carta ' + id" />
+                    </button>
+                  }
+                } @else {
+                  <div class="card-back"><img src="cards/back.webp" alt="Dorso del mazo de combate" /></div>
+                }
+              </div>
+              @if (c.turn === 'automa' && c.damageRemaining === undefined && (!c.attackReady || c.comboPending) && currentCombatCard()) {
+                <div class="combat-result-row"
+                  [style.--summary-units]="2 * (1 + (c.lastShieldGain ? 1 : 0) + (c.lastPotionsSpent ? 1 : 0) + (c.lastBombsSpent ? 1 : 0)) + (c.lastMutagensUsed?.length ?? 0)"
+                  aria-label="Resultado del ataque" aria-live="polite">
+                  <output class="combat-result-item" [attr.aria-label]="c.lastDamage + ' de daño'"><b>{{ c.lastDamage }}</b><app-icon name="damage" /></output>
+                  @if (c.lastShieldGain) {
+                    <output class="combat-result-item" [attr.aria-label]="c.lastShieldGain + ' de escudo ganado'"><b>{{ c.lastShieldGain }}</b><app-icon name="shield" /></output>
+                  }
+                  @if (c.lastPotionsSpent) {
+                    <output class="combat-result-item" [attr.aria-label]="c.lastPotionsSpent + ' pociones gastadas'"><b>−{{ c.lastPotionsSpent }}</b><app-icon name="potion" /></output>
+                  }
+                  @if (c.lastBombsSpent) {
+                    <output class="combat-result-item" [attr.aria-label]="c.lastBombsSpent + ' bombas gastadas'"><b>−{{ c.lastBombsSpent }}</b><app-icon name="bomb" /></output>
+                  }
+                  @if (g.mutagenModule && c.lastMutagensUsed?.length) {
+                    <app-mutagen-tokens aria-label="Mutágenos usados en este combo" [tokens]="g.mutagens ?? []" [spent]="c.mutagensSpent ?? []" [dimSpent]="false" [only]="c.lastMutagensUsed" />
+                  }
+                </div>
+              }
+            </section>
+            <section class="combat-discard" aria-label="Descarte de combate">
+              @if (c.damageCard ?? c.discard.at(-1); as id) {
+                <button class="card-art-button combat-discard-card" (click)="zoom(id)" aria-label="Ampliar carta descartada de combate">
+                  <img class="playing-card" [src]="img(id)" [alt]="'Carta ' + id + ' del descarte de combate'" />
+                </button>
+              } @else {
+                <div class="combat-empty-discard"><span>Descarte</span></div>
+              }
+            </section>
+            <section class="combat-controls" aria-live="polite">
+              @if (c.damageRemaining !== undefined) {
+                <button class="primary-button" (click)="continueDamage()">
+                  {{ c.damageRemaining ? 'Descartar siguiente (' + c.damageRemaining + ')' : 'Continuar' }} <app-icon name="move" />
+                </button>
+              } @else if (outcome()) {
+                @if (outcome() === 'loss' && c.manualOpponent && c.turn === 'automa' && (!c.attackReady || c.comboPending) && currentCombatCard()) {
+                  <strong class="combat-outcome">Último ataque</strong>
+                  <button class="primary-button" (click)="declareVictory()">Confirmar victoria <app-icon name="trophy" /></button>
+                  <button class="outline-button" (click)="finish()">Confirmar derrota <app-icon name="shield" /></button>
+                } @else {
+                  <strong class="combat-outcome">{{ outcome() === 'win' ? 'Victoria' : 'Mazo agotado' }}</strong>
+                  <button class="primary-button" (click)="finish()">Cerrar combate <app-icon name="combat-gold" /></button>
+                }
+              } @else if (c.turn === 'opponent') {
+                <form class="combat-input-row" (ngSubmit)="hit()">
+                  <div class="combat-damage-heading">
+                    <label for="damage">{{ c.kind === 'monster' ? 'Daño del monstruo' : 'Daño del rival' }}</label>
+                    @if (c.kind === 'monster' && monsterTrailActive(g)) {
+                      <button type="button" class="monster-attacks-info" aria-label="Consultar tabla de ataques especiales de monstruos"
+                        title="Tabla de monstruos · página 15" aria-haspopup="dialog" aria-controls="game-dialog"
+                        (click)="open('monster-attacks')"><app-icon name="info" /></button>
+                    }
+                  </div>
+                  <div class="combat-stepper">
+                    <button type="button" aria-label="Reducir daño" title="Reducir daño" [disabled]="damage() <= 0" (click)="damage.set(Math.max(0, damage() - 1))">&minus;</button>
+                    <input id="damage" name="damage" type="number" min="0" max="200" readonly [ngModel]="damage()" />
+                    <button type="button" aria-label="Aumentar daño" title="Aumentar daño" [disabled]="damage() >= 200" (click)="damage.set(Math.min(200, damage() + 1))">+</button>
+                  </div>
+                  <button class="primary-button combat-icon-button" type="submit" aria-label="Aplicar daño" title="Aplicar daño"><app-icon name="damage" /></button>
+                </form>
+              } @else {
+                @if (c.attackReady) {
+                  <button class="primary-button" (click)="attack()">{{ c.comboPending ? 'Resolver combo adicional' : 'Revelar combo' }} <app-icon name="combat-gold" /></button>
+                } @else {
+                  <button class="primary-button" (click)="opponentTurn()">Turno de {{ c.opponent }} <app-icon [name]="c.kind === 'monster' ? 'monster-gold' : 'enemy-witcher'" /></button>
+                }
+              }
+            @if (!outcome() && c.damageRemaining === undefined) {
+              <div class="combat-secondary-controls">
+                @if (c.turn === 'opponent' && c.kind === 'monster') {
+                  <form class="combat-effect-discard" (ngSubmit)="discardForAbility()">
+                    <label for="ability-discard">Descarte por efectos del monstruo</label>
+                    <div class="combat-input-row">
+                      <div class="combat-stepper">
+                        <button type="button" aria-label="Reducir cartas a descartar" title="Reducir cartas a descartar" [disabled]="Math.min(abilityDiscard(), c.deck.length) <= 1" (click)="abilityDiscard.set(Math.max(1, Math.min(abilityDiscard(), c.deck.length) - 1))">&minus;</button>
+                        <input id="ability-discard" name="ability-discard" type="number" min="1" [max]="c.deck.length" readonly [ngModel]="Math.min(abilityDiscard(), c.deck.length)" />
+                        <button type="button" aria-label="Aumentar cartas a descartar" title="Aumentar cartas a descartar" [disabled]="abilityDiscard() >= c.deck.length" (click)="abilityDiscard.set(Math.min(c.deck.length, abilityDiscard() + 1))">+</button>
+                      </div>
+                      <button class="primary-button combat-icon-button" type="submit" aria-label="Descartar" title="Descartar" [disabled]="!c.deck.length || !!g.notices.length">
+                        <app-icon name="discard" />
+                      </button>
+                    </div>
+                  </form>
+                }
+                <button class="text-button combat-confirm-victory" (click)="declareVictory()">Confirmar victoria <app-icon name="trophy" /></button>
+              </div>
+            }
+            </section>
+            <app-deck-counter [deckCount]="c.deck.length" [discardCount]="c.discard.length" [trophies]="g.trophies" aria-label="Mazo de combate" />
+          </div>
+        } @else {
+          <section class="duel-start" aria-label="Iniciar duelo de brujos">
+            <button class="duel-start-button" [disabled]="g.trophies === 4" (click)="openDuel()"
+              aria-label="Un brujo reta al automa: iniciar duelo" title="Un brujo reta al automa: iniciar duelo">
+              <img src="icons/enemy-witcher.png" alt="" draggable="false" />
+            </button>
+          </section>
+        }
+      }
+      @if (tab() === 'meditation') {
+        <app-meditation [available]="g.meditationAvailable" (availabilityChange)="setMeditation($event.attribute, $event.available)" />
+      }
+      @if (tab() === 'poker') {
+        <section class="poker-table" aria-label="Partida de póker de dados" [attr.aria-busy]="pokerRolling()">
+          <div class="poker-result">
+            @if (poker(); as c) {
+              <figure class="poker-dice" [attr.aria-label]="'Dados del automa: ' + c.dice.join(', ')">
+                @for (die of c.dice; track $index) {
+                  <div class="poker-die" [class.rolling]="pokerRolling()" [style.--die-index]="$index"
+                    (animationend)="$index === 4 && pokerRolling.set(false)" aria-hidden="true">
+                    @for (slot of dieSlots; track slot) {
+                      <span class="die-pip" [class.pip-on]="diePips[die].includes(slot)"></span>
+                    }
+                  </div>
+                }
+              </figure>
+              <output class="poker-hand" aria-label="Jugada del automa" aria-live="polite">{{ pokerRolling() ? '' : pokerHand(c.dice) }}</output>
+            }
+          </div>
+          <button class="primary-button poker-roll-button"
+            [disabled]="pokerRolling() || !!g.combat || g.trophies === 4 || !!g.notices.length"
+            [title]="g.combat ? 'Termina el combate activo' : ''" (click)="pokerDraw()">
+            <img src="navigation/poker.png" alt="" />
+            {{ pokerRolls() === 1 ? 'Segunda tirada' : 'Iniciar partida' }}
+          </button>
+        </section>
+      }
+      @if (tab() === 'journal') {
+        <div class="archive-heading">
+          <div>
+            <span class="eyebrow">TU PARTIDA, A SALVO</span>
+            <h2>El archivo de la senda.</h2>
+          </div>
+        </div>
+        <div class="archive-grid journal-only">
+          <section class="journal-panel">
+            <h3>Últimos acontecimientos</h3>
+            <ol>
+              @for (entry of g.history; track $index) {
+                <li>{{ entry }}</li>
+              }
+            </ol>
+          </section>
+
+        </div>
+        <div class="catalog-heading">
+          <h3>Las 27 cartas del juego base</h3>
+          <div class="segmented compact" role="group" aria-label="Filtrar cartas por nivel">
+            @for (n of [0, 1, 2, 3]; track n) {
+              <button [class.active]="archiveLevel() === n" (click)="archiveLevel.set(n)">
+                {{ n === 0 ? 'Todas' : ['', 'I', 'II', 'III'][n] }}
+              </button>
+            }
+          </div>
+        </div>
+        <div class="card-catalog">
+          @for (c of filteredCards(); track c.id) {
+            <button (click)="zoom(c.id)" [attr.aria-label]="'Consultar carta ' + c.id">
+              <img loading="lazy" [src]="img(c.id)" [alt]="'Carta ' + c.id" /><span
+                >N.º {{ c.id }} · {{ c.kind === 'generic' ? 'Genérica' : c.kind === 'trophy' ? 'Específica III' : 'Específica' }}</span
+              >
+            </button>
+          }
+        </div>
+      }
+      }
+    </main>
+    <app-board (ability)="openSchoolAbility(store.school().id)" />
+  </div>
+}
+@if (store.warning()) {
+  <div class="notification" role="alert">
+    {{ store.warning()
+    }}<button aria-label="Cerrar aviso" (click)="store.warning.set('')">×</button>
+  </div>
+}
+<dialog
+  #dialog
+  id="game-dialog"
+  class="modal"
+  [class.monster-attacks-modal]="modal() === 'monster-attacks' && !store.game()?.notices?.length"
+  [class.discard-notice]="!!store.game()?.notices?.length && !store.game()!.notices[0].resource"
+  [class.image-modal]="modal() === 'card' || modal() === 'school'"
+  [class.school-image-modal]="modal() === 'school' && !store.game()?.notices?.length"
+  [attr.aria-label]="modal() === 'monster-attacks' ? 'Tabla de ataques especiales de monstruos, página 15' : modal() === 'school' ? 'Especialidad: ' + abilitySchool().name : null"
+  (cancel)="cancelDialog($event)"
+  (click)="closeFromBackdrop($event)"
+>
+  @if (store.game()?.notices?.length) {
+    @if (store.game()!.notices[0]; as notice) {
+      @if (!notice.resource) {
+        <h2 class="discard-notice-heading">Efecto de descarte
+          @if (discardNoticeEffect(); as effect) {
+            @if (effect.damage) {
+              <span class="discard-notice-value" [attr.aria-label]="effect.damage + ' de daño'">{{ effect.damage }} <app-icon name="damage" /></span>
+            } @else if (effect.maxShield) {
+              <span class="discard-notice-value" aria-label="Escudo al máximo">{{ shieldLimit(store.game()!.attributes.defense) }} <app-icon name="shield" /></span>
+            }
+          }
+        </h2>
+        <img class="notice-card" [src]="img(notice.card)" alt="Carta con efecto de descarte" />
+        <button class="primary-button" (click)="confirmNotice()">Continuar</button>
+      }
+    }
+  } @else {
+  @if (modal() !== 'school') {<button class="modal-close" (click)="close()" aria-label="Cerrar ventana">×</button>}
+  @if (modal() === 'monster-attacks') {
+    <h2>Tabla de ataques de monstruos</h2>
+    <div class="monster-attacks-scroll" tabindex="0" role="region" aria-label="Tabla del manual, desplazable">
+      <img src="rules/monster-attacks-page-15.png" alt="Tabla original de ataques especiales de monstruos: monstruos agrupados por nivel y efectos de cada ataque, con leyenda de daño y poción." />
+    </div>
+    <a class="monster-attacks-source" href="rules/reglamento.pdf#page=15" target="_blank" rel="noopener">Manual · página 15 ↗</a>
+  }
+  @if (modal() === 'meditation') {
+    <app-icon class="meditation-modal-icon" name="meditate" />
+    <span class="eyebrow">MEDITACIÓN</span><h2>Retirar trofeo de {{ labels[meditation()!] }}</h2>
+    <p>El automa gana el trofeo de <strong>{{ labels[meditation()!] }}</strong> por meditación. Retira ese trofeo del juego: ya no estará disponible para ningún otro brujo.</p>
+    <div class="modal-actions"><button class="outline-button" (click)="close()">Cancelar</button><button class="primary-button" (click)="resolve(true)">Confirmar retirada</button></div>
+  }
+  @if (modal() === 'legend') {
+    <span class="eyebrow">GUÍA DEL CAMINO</span>
+    <h2>Leyenda y secuencia de turno</h2>
+    <p>Referencia rápida del automa 1.4 · Juego base, un rival.</p>
+    <h3>Las tres fases</h3>
+    <ol class="legend-sequence">
+      <li>
+        <b>I · Movimiento y acciones</b>
+        <p>
+          Revela acción. Sigue el camino más corto hacia su destino y aplica las mejoras. Si el
+          destino es un monstruo, elige el de menor nivel sin límite de distancia. Desempata por
+          rastro, menor vida y flecha de localización (↑ mayor, ↓ menor).
+        </p>
+      </li>
+      <li>
+        <b>II · Encuentro</b>
+        <p>
+          Intenta los iconos de izquierda a derecha. Medita con un atributo a 5 y su trofeo
+          disponible; combate si cumple la condición y hay oponente. Si ninguna opción es posible,
+          continúa sin combate ni meditación.
+        </p>
+      </li>
+      <li>
+        <b>III · Mercado</b>
+        <p>
+          Retira todas las posiciones señaladas y después repón. Descarta la carta de acción. Ahora
+          juega tu turno.
+        </p>
+      </li>
+    </ol>
+    <h3>Iconografía de las cartas</h3>
+    <div class="legend-icons">
+      @for (a of attrs; track a) {
+        <div>
+          <img [src]="iconImage(a)" [alt]="'Icono original de ' + labels[a]" />
+          <p>
+            <b>{{ labels[a] }} +1</b
+            ><span>{{
+              a === 'defense'
+                ? 'También aumenta el escudo.'
+                : a === 'alchemy'
+                  ? 'No concede una poción.'
+                  : a === 'special'
+                    ? 'Mejora el atributo de escuela.'
+                    : 'Mejora el atributo de ataque.'
+            }}</span>
+          </p>
+        </div>
+      }
+      <div>
+        <img src="icons/potion.png" alt="Icono original de poción" />
+        <p>
+          <b>Poción</b
+          ><span>Gana una, hasta un máximo de 4. En combate se gasta para el efecto indicado.</span>
+        </p>
+      </div>
+      <div>
+        <img src="icons/trace.png" alt="Icono original de rastro" />
+        <p><b>Rastro</b><span>Gana uno del terreno actual. Máximo uno de cada tipo.</span></p>
+      </div>
+      <div>
+        <span class="legend-attribute-order"><img src="icons/highest.png" alt="Habilidad más alta" /><img src="icons/lowest.png" alt="Habilidad más baja" /></span>
+        <p>
+          <b>Mayor / menor atributo</b
+          ><span
+            >Mejora el mayor o menor, omitiendo nivel 5. Empate: primero a la izquierda del
+            tablero.</span
+          >
+        </p>
+      </div>
+      <div>
+        <img src="icons/monster.png" alt="Icono original de monstruo" />
+        <p>
+          <b>Combate con monstruo</b
+          ><span>Comprueba la condición de trofeos: &lt; es menos; ≤ es tantos o menos.</span>
+        </p>
+      </div>
+    </div>
+    <div class="legend-icons combat-legend">
+      <div>
+        <img src="icons/chain.webp" alt="Carta abierta y mano" />
+        <p>
+          <b>Combo adicional</b><span>Resuelve otra carta inmediatamente después de esta.</span>
+        </p>
+      </div>
+      <div>
+        <img src="icons/discard.webp" alt="Carta doblada" />
+        <p>
+          <b>Descartar sin resolver</b
+          ><span>Retira la carta superior de combate sin activar sus efectos.</span>
+        </p>
+      </div>
+      <div>
+        <img src="icons/recover.webp" alt="Carta con flecha hacia abajo" />
+        <p><b>Recuperar vida</b><span>Baraja la carta superior del descarte en combate.</span></p>
+      </div>
+      <div>
+        <img src="icons/on-damage.webp" alt="Carta rota con exclamación" />
+        <p>
+          <b>Efecto al sufrir daño</b
+          ><span>Se activa solo si un ataque del oponente descarta esta carta.</span>
+        </p>
+      </div>
+    </div>
+    <h3>El orden del combate</h3>
+    <p class="legend-combat-flow">Daño → Escudo → Efectos de carta / especial de escuela</p>
+    <ul class="legend-rules">
+      <li>El mazo de combate reúne desafío y descarte. Cada carta restante es un punto de vida.</li>
+      <li>
+        El escudo absorbe antes de descartar cartas. Al descartar por daño, se activan los efectos
+        del símbolo de carta rota con «!».
+      </li>
+      <li>
+        Las marcas blancas en la banda izquierda son daño y los escudos son protección. El recuadro
+        inferior describe pociones, bombas, combos y especiales I, II o III.
+      </li>
+      <li>
+        La carta con flecha hacia abajo recupera del descarte y se baraja. La carta doblada sin
+        flecha descarta la superior sin resolver. La carta abierta con una mano encadena otro combo.
+      </li>
+      <li>
+        La iniciativa con monstruos es del automa si tiene su rastro. Anuncia mordisco o embestida
+        antes de revelar el ataque del monstruo.
+      </li>
+      <li>
+        Al ganar un trofeo, incorpora una carta III de la reserva a desafío sin mezclar el descarte.
+        El cuarto trofeo termina la partida, también por meditación.
+      </li>
+      <li>
+        Cuando se acaba acción, recicla solo las cartas III. Desafío se baraja cuando se agota o al
+        iniciar combate.
+      </li>
+      <li>
+        El oro y la fatiga no se aplican al automa. Los niveles 5 quedan bloqueados. Las bombas solo
+        funcionan con su módulo activado.
+      </li>
+      <li>
+        Monster Trail permite activar bombas y mutágenos por separado. Con mutágenos activos,
+        el nivel del automa es el menor de sus cuatro atributos: gana una ficha aleatoria al llegar
+        a los niveles 2, 3, 4 y 5. Cada ficha del color de un combo aplica el efecto de la escuela
+        una vez por combate, aunque varias fichas compartan color.
+      </li>
+    </ul>
+    <p class="manual-links">
+      <a href="rules/reglamento.pdf" target="_blank" rel="noopener">Abrir reglamento original ↗</a
+      ><a href="rules/aclaraciones.pdf" target="_blank" rel="noopener">Guía de aclaraciones ↗</a>
+    </p>
+    <details class="source-details">
+      <summary>Fuentes, excepciones y créditos</summary>
+      <p>
+        Los datos de cartas y dados siguen las especificaciones Word aportadas. Las imágenes originales pueden mostrar otros valores. Reglamento Automa Witcher 1.4, cartas españolas 1.4 y guía de aclaraciones incluidos en esta
+        carpeta. Para discrepancias, prevalece el reglamento 1.4: las habilidades especiales de los
+        monstruos se resuelven en la mesa con su tabla (pág. 11 y 15). La app resuelve las cartas
+        base y el daño; no interpreta las cartas de monstruo ni decide rutas del tablero físico.
+      </p>
+      <p>
+        La guía y el reglamento difieren al descartar por color. Se mantiene la regla del manual:
+        revela la carta superior, aplica la coincidencia y sigue la alternativa del monstruo cuando
+        no coincida. Gestiona esta excepción en la mesa.
+      </p>
+      <p>
+        Diseño del automa: dukefanblue2005 · Cartas: GeckoTH · Manual: Omnitastic · Traducción y
+        revisión: Manuel Horacio y Adrián Cidoncha. Ilustraciones e iconos extraídos del material
+        aportado. The Witcher pertenece a sus respectivos titulares. Proyecto de uso personal no
+        oficial.
+      </p>
+    </details>
+  }
+  @if (modal() === 'school') {
+    <button class="ability-image-close" aria-label="Cerrar especialidad" (click)="close()">
+      <img class="ability-original" [src]="'schools/' + abilitySchool().id + '-ability.webp'"
+        [alt]="'Especialidad de la escuela ' + abilitySchool().name" />
+    </button>
+  }
+  @if (modal() === 'card' && zoomId(); as id) {
+    <span class="eyebrow">CARTA ORIGINAL · N.º {{ id }}</span
+    ><img class="zoomed-card" [src]="img(id)" [alt]="'Carta original número ' + id" />
+  }
+  @if (modal() === 'new') {
+    <span class="eyebrow">UN NUEVO COMIENZO</span>
+    <h2>¿Otra senda por recorrer?</h2>
+    <p>
+      La partida actual se sustituirá al pulsar «Comenzar la partida» en la preparación del nuevo brujo.
+    </p>
+    <div class="modal-actions">
+      <button class="primary-button" (click)="prepareSetup()">
+        Preparar nueva partida →
+      </button>
+    </div>
+  }
+  }
+</dialog>
