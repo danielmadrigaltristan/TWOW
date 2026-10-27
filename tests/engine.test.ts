@@ -107,9 +107,11 @@ test('alchemy never grants potion, consumables cap at four and bombs require mod
   assert.equal(s.attributes.alchemy, 2);
   assert.equal(s.potions, 4);
   assert.equal(s.bombs, 0);
+  assert.doesNotMatch(s.history[0]!, /bomba/i);
   s.bombModule = true;
   e.applyActions(s, { ...CARD_BY_ID[1]!, actions: ['bomb'] });
   assert.equal(s.bombs, 1);
+  assert.match(s.history[0]!, /bomba/i);
   assert.deepEqual(s.notices, []);
 });
 test('attribute tie uses board order and skips maximum', () => {
@@ -601,6 +603,20 @@ test('all general and specific encounter thresholds follow Word', () => {
   assert.deepEqual(CARDS.filter(c => c.phase2.includes('meditate')).map(c => c.id), [15,16,17,18]);
 });
 
+test('monster effect can discard before the automa first attack without changing initiative', () => {
+  const s = battle([3, 19, 22, 1]);
+  s.shield = 2;
+  e.discardForAbility(s, 2);
+  assert.deepEqual(s.combat!.deck, [22, 1]);
+  assert.deepEqual(s.combat!.discard, [3, 19]);
+  assert.equal(s.combat!.turn, 'automa');
+  assert.equal(s.combat!.attackReady, true);
+  assert.equal(s.combat!.current, null);
+  assert.equal(s.shield, 2);
+  assert.deepEqual(s.notices, []);
+  e.attack(s);
+  assert.equal(s.combat!.current, 22);
+});
 test('monster effect discard bypasses shield and damage effects without changing turn', () => {
   const s = battle([3, 19, 22, 1]);
   s.shield = 2;

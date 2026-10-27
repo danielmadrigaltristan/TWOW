@@ -135,7 +135,7 @@ export function applyActions(s: GameState, card: Card): void {
     if (action === 'bomb' && s.bombModule) s.bombs = Math.min(4, s.bombs + 1);
     if (action === 'trace' && !s.traces.includes(s.terrain)) s.traces.push(s.terrain);
   }
-  log(s, `Fase I: ${card.actions.map((a) => LABELS[a]).join(' · ')}.`);
+  log(s, `Fase I: ${card.actions.filter(a => a !== 'bomb' || s.bombModule).map((a) => LABELS[a]).join(' · ')}.`);
 }
 export function drawAction(s: GameState): void {
   if (s.phase !== 0 || s.trophies >= 4 || s.combat || s.notices.length) return;

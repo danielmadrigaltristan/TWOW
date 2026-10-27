@@ -30,8 +30,23 @@ export const GAME_ICON_IMAGES: Readonly<Record<string, string>> = {
     '[class.terrain-symbol]': "['forest', 'mountain', 'water'].includes(name())",
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: `
+    .bomb-symbol {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: var(--control-brown);
+      mask-position: center;
+      mask-repeat: no-repeat;
+      mask-size: contain;
+    }
+  `,
   template: `@if (image(); as src) {
+    @if (name() === 'bomb') {
+      <span class="bomb-symbol" [style.mask-image]="'url(' + src + ')'" aria-hidden="true"></span>
+    } @else {
     <img [src]="src" alt="" aria-hidden="true" draggable="false" />
+    }
   } @else {<svg
     viewBox="0 0 32 32"
     aria-hidden="true"

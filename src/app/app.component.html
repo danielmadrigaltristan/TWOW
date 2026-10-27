@@ -210,11 +210,12 @@
                 <h2 class="phase-label">Fase I / Acciones</h2>
                 <div class="action-list" [class.actions-applied]="g.actionStep === 'applied'">
                   @for (a of c.actions; track $index) {
+                    @if (a !== 'bomb' || g.bombModule) {
                     <div><span class="action-icon"><app-icon [name]="a === 'trace' ? g.terrain : a" /></span>
                       <span>{{ labels[a] }}{{ attrs.includes($any(a)) ? ' +1' : '' }}
-                        @if (a === 'bomb' && !g.bombModule) { <small> · Módulo desactivado</small> }
                       </span>
                     </div>
+                    }
                   }
                 </div>
                 @if (g.actionStep === 'applied') {
@@ -408,7 +409,7 @@
               }
             @if (!outcome() && c.damageRemaining === undefined) {
               <div class="combat-secondary-controls">
-                @if (c.turn === 'opponent' && c.kind === 'monster') {
+                @if (c.kind === 'monster') {
                   <form class="combat-effect-discard" (ngSubmit)="discardForAbility()">
                     <label for="ability-discard">Descarte por efectos del monstruo</label>
                     <div class="combat-input-row">
