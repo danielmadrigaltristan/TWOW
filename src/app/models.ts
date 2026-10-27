@@ -129,7 +129,7 @@ export const LABELS: Record<Action, string> = {
   lowest: 'Mejora el atributo más bajo',
   highest: 'Mejora el atributo más alto',
   potion: 'Gana una poción',
-  bomb: 'Gana una bomba (módulo)',
+  bomb: 'Gana una bomba',
   trace: 'Gana un rastro del terreno actual',
 };
 export const TERRAIN_NAMES: Record<Terrain, string> = {
